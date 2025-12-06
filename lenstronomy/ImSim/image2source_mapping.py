@@ -111,7 +111,9 @@ class Image2SourceMapping(object):
             # if self._multi_source_plane is False:
             #     self._source_redshift_list = [self._lens_model.z_source]
             #     self._sorted_source_redshift_index = [0]
-
+            if len(self._source_redshift_list) == 0: 
+                #for the particular case where we only have point sources (no light model), we set the source redshift list here
+                self._source_redshift_list = [self._lens_model.z_source]
             self.multi_plane_organizer = MultiPlaneOrganizer(
                 self._lens_redshift_list,
                 self._source_redshift_list,
