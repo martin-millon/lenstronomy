@@ -243,7 +243,7 @@ class BPLMajorAxis(LensProfileBase):
         mask0 = (x == 0) & (y == 0)
         if np.ndim(Z_safe) == 0:
             if bool(mask0):
-                Z_safe = _TINY + 0j
+                Z_safe = np.complex128(_TINY + 0j)
         else:
             Z_safe[mask0] = _TINY + 0j
 
@@ -298,7 +298,7 @@ class BPLMajorAxis(LensProfileBase):
         mask0 = (x == 0) & (y == 0)
         if np.ndim(Z_safe) == 0:
             if bool(mask0):
-                Z_safe = _TINY + 0j
+                Z_safe = np.complex128(_TINY + 0j)
         else:
             Z_safe[mask0] = _TINY + 0j
 

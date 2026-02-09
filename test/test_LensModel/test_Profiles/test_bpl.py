@@ -1,10 +1,205 @@
-__author__ = "rgh (adapted from sibirrer test_epl)"
-
 import numpy as np
 import pytest
 import warnings
 import numpy.testing as npt
 import lenstronomy.Util.param_util as param_util
+from lenstronomy.LensModel.Profiles.bpl import BPL
+
+
+def _assert_finite_complex(z):
+    z = np.asarray(z, dtype=np.complex128)
+    assert np.all(np.isfinite(z.real))
+    assert np.all(np.isfinite(z.imag))
+
+
+def _finite(z):
+    z = np.asarray(z)
+    assert np.all(np.isfinite(z))
+
+
+class TestBPLInternals(object):
+    """Cover scalar-input branches and 3D helper functions that are not hit by BPL-vs-
+    EPL tests."""
+
+    def setup_method(self):
+        from lenstronomy.LensModel.Profiles.bpl import BPL
+
+        self.bpl = BPL()
+        self.major = self.bpl.bpl_major_axis
+
+    @staticmethod
+    def _kwargs_bpl(b=1.0, a=2.0, a_c=2.0, r_c=0.7, q=0.8, phi_G=1.0):
+        e1, e2 = param_util.phi_q2_ellipticity(phi_G, q)
+        return dict(
+            b=b,
+            a=a,
+            a_c=a_c,
+            r_c=r_c,
+            e1=e1,
+            e2=e2,
+            center_x=0.0,
+            center_y=0.0,
+        )
+
+    def test_scalar_origin_hits_center_shear_fix_and_major_axis_safe_complex(
+        self, monkeypatch
+    ):
+        """Cover BPL.hessian scalar-origin 'center shear = 0' branch without calling
+        BPLMajorAxis.hessian at scalar origin (which is currently not safe due to
+        .conj())."""
+
+        # Return an intentionally non-zero shear in major-axis frame,
+        # so the wrapper must zero it out at exact center.
+        def _fake_major_hessian(x, y, b, a, a_c, r_c, q):
+            # f__xx, f__xy, f__yx, f__yy
+            return 2.0, 0.3, 0.3, 1.0
+
+        monkeypatch.setattr(self.major, "hessian", _fake_major_hessian)
+
+        # Choose a non-trivial orientation so rotation code still runs
+        q = 0.7
+        phi_G = 0.9
+        e1, e2 = param_util.phi_q2_ellipticity(phi_G, q)
+
+        kwargs = dict(
+            b=1.0,
+            a=2.2,
+            a_c=1.7,
+            r_c=0.6,
+            e1=e1,
+            e2=e2,
+            center_x=0.0,
+            center_y=0.0,
+        )
+
+        f_xx, f_xy, f_yx, f_yy = self.bpl.hessian(0.0, 0.0, **kwargs)
+
+        # At exact center, wrapper enforces gamma1__=gamma2__=0 => f_xy=0 and f_xx=f_yy=kappa
+        npt.assert_allclose(f_xy, 0.0, atol=1e-14)
+        npt.assert_allclose(f_yx, 0.0, atol=1e-14)
+        npt.assert_allclose(f_xx, f_yy, atol=1e-14)
+
+    def test_beta_func_special_cases(self):
+        """Beta_func(a) = Beta(1/2, (a-1)/2).
+
+        Choose a where the Beta function has simple closed forms:
+          a=2 -> Beta(1/2, 1/2) = pi
+          a=3 -> Beta(1/2, 1)   = 2
+        """
+        npt.assert_allclose(self.bpl.Beta_func(2.0), np.pi, rtol=1e-12, atol=1e-12)
+        npt.assert_allclose(self.bpl.Beta_func(3.0), 2.0, rtol=1e-12, atol=1e-12)
+
+    def test_rho_c_from_b_matches_analytic_for_a2(self):
+        """
+        rho_c_from_b:
+          rho_c = (3-a) * b^(a-1) / (2*B(a)*r_c^a)
+        For a=2: B(a)=pi => rho_c = b / (2*pi*r_c^2)
+        """
+        b = 1.3
+        a = 2.0
+        r_c = 0.7
+        rho = self.bpl.rho_c_from_b(b=b, a=a, r_c=r_c)
+        rho_expected = b / (2.0 * np.pi * r_c**2)
+        npt.assert_allclose(rho, rho_expected, rtol=1e-12, atol=1e-12)
+
+    def test_mass_3d_lens_inner_outer_vectorized_and_continuous(self):
+        """Hit the marked '*'-lines in mass_3d_lens:
+
+        - r = np.asarray(...)
+        - allocate M = zeros_like
+        - inner/outer masks and both branches
+        - m0 term in outer branch
+        - return M
+        """
+        b = 1.0
+        a = 2.2
+        a_c = 1.6
+        r_c = 0.7
+
+        r = np.array([0.2 * r_c, 0.9 * r_c, 1.0 * r_c, 1.1 * r_c, 2.5 * r_c])
+        M = self.bpl.mass_3d_lens(r=r, b=b, a=a, a_c=a_c, r_c=r_c)
+
+        assert M.shape == r.shape
+        assert np.all(np.isfinite(M))
+        assert np.all(M > 0.0)
+        assert np.all(np.diff(M) > 0.0)
+
+        # continuity at r_c (function is built to be continuous; derivative may jump)
+        eps = 1e-6
+        M_minus = self.bpl.mass_3d_lens(r=r_c * (1.0 - eps), b=b, a=a, a_c=a_c, r_c=r_c)
+        M_plus = self.bpl.mass_3d_lens(r=r_c * (1.0 + eps), b=b, a=a, a_c=a_c, r_c=r_c)
+        npt.assert_allclose(M_minus, M_plus, rtol=1e-5, atol=0.0)
+
+        # scalar r should also work (covers dtype/shape corner cases)
+        M_scalar = self.bpl.mass_3d_lens(r=0.3 * r_c, b=b, a=a, a_c=a_c, r_c=r_c)
+        assert np.isfinite(M_scalar)
+
+    def test_mass_3d_lens_divergent_slopes_raise(self):
+        b = 1.0
+        r_c = 0.7
+
+        with pytest.raises(ValueError, match="a_c = 3"):
+            self.bpl.mass_3d_lens(r=1.0, b=b, a=2.0, a_c=3.0, r_c=r_c)
+
+        with pytest.raises(ValueError, match="a = 3"):
+            self.bpl.mass_3d_lens(r=1.0, b=b, a=3.0, a_c=2.0, r_c=r_c)
+
+    def test_major_axis_hessian_scalar_denom2_exact_zero_regularization(self):
+        """Hit the scalar denom2==0 branch in BPLMajorAxis.hessian."""
+        b = 1.0
+        a = 2.2
+        a_c = 1.7
+
+        # Pick values that make denom2 exactly 0 in float64:
+        # denom2 = q*x^2 - (1+q^2)*r_c^2  (for y=0)
+        q = np.float64(0.3)
+        x = np.float64(5.0)
+        y = np.float64(0.0)
+        r_c = np.sqrt(q * x * x / (1.0 + q * q))  # makes denom2 == 0 exactly
+
+        f_xx, f_xy, f_yx, f_yy = self.major.hessian(
+            float(x), float(y), b, a, a_c, float(r_c), float(q)
+        )
+        assert np.isfinite(f_xx)
+        assert np.isfinite(f_xy)
+        assert np.isfinite(f_yx)
+        assert np.isfinite(f_yy)
+
+    def test_exhyp2f1_scalar_z_wrap_and_general_branch(self):
+        """
+        Cover exhyp2f1: (1) scalar z -> array([z]) and (2) else-branch (c-a-b != 0.5).
+        """
+        out = self.major.exhyp2f1(a=0.25, b=0.60, c=2.00, z=0.20)  # c-a-b = 1.15 != 0.5
+        # should be array-like (size 1) and finite
+        _assert_finite_complex(out)
+        assert np.size(out) == 1
+
+    def test_s0arr_scalar_resizes_converges_and_unwraps(self):
+        """Cover s0arr scalar-input resize (nzc==1), convergence break, and scalar
+        unwrap."""
+        out = self.major.s0arr(
+            alpha=2.2, alphac=1.7, zel2=0.5, c=0.8, target_precision=1e-4
+        )
+        _assert_finite_complex(out)
+
+    def test_s2arr_scalar_resizes_converges_and_unwraps(self):
+        """Cover s2arr scalar-input resize (nzc==1), convergence break, and scalar
+        unwrap."""
+        out = self.major.s2arr(
+            alpha=2.2, alphac=1.7, zel2=0.5, c=0.8, target_precision=1e-4
+        )
+        _assert_finite_complex(out)
+
+    def test_major_axis_derivatives_scalar_origin_hits_Z_safe_scalar(self):
+        fx, fy = self.major.derivatives(0.0, 0.0, b=1.0, a=2.2, a_c=1.7, r_c=0.6, q=0.8)
+        _finite([fx, fy])
+
+    def test_major_axis_hessian_scalar_origin_hits_Z_safe_scalar(self):
+        f_xx, f_xy, f_yx, f_yy = self.major.hessian(
+            0.0, 0.0, b=1.0, a=2.2, a_c=1.7, r_c=0.6, q=0.8
+        )
+        _finite([f_xx, f_xy, f_yx, f_yy])
+        npt.assert_allclose(f_xy, f_yx, atol=1e-12, rtol=0.0)
 
 
 class TestBPLvsEPL(object):
@@ -72,6 +267,7 @@ class TestBPLvsEPL(object):
                 b=1.3, a=2.0, q=q, phi_G=1.0, r_c=0.7
             )
 
+            # Ensure **kwargs_bpl passes as a dictionary and not as tuple
             psi_bpl = self.bpl.function(x, y, **kwargs_bpl)
             psi_epl = self.epl.function(x, y, **kwargs_epl)
 
@@ -89,6 +285,7 @@ class TestBPLvsEPL(object):
                 b=1.0, a=2.1, q=q, phi_G=0.3, r_c=0.5
             )
 
+            # Ensure **kwargs_bpl passes as a dictionary and not as tuple
             fx_bpl, fy_bpl = self.bpl.derivatives(x, y, **kwargs_bpl)
             fx_epl, fy_epl = self.epl.derivatives(x, y, **kwargs_epl)
 
@@ -104,6 +301,7 @@ class TestBPLvsEPL(object):
                 b=1.0, a=1.9, q=q, phi_G=1.0, r_c=0.7
             )
 
+            # Ensure **kwargs_bpl passes as a dictionary and not as tuple
             f_xx, f_xy, f_yx, f_yy = self.bpl.hessian(x, y, **kwargs_bpl)
             f_xx_e, f_xy_e, f_yx_e, f_yy_e = self.epl.hessian(x, y, **kwargs_epl)
 

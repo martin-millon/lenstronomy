@@ -236,6 +236,84 @@ class TestPLSersic(object):
         )
         npt.assert_almost_equal(v2[0] / v1[0], 2.0, decimal=10)
 
+    def test_pl_sersic_cutoff_scalar(self):
+        # cover scalar branch: np.ndim(R)==0 and R > R_max -> return 0.0
+        amp = 1.0
+        R_sersic = 1.0
+        n_sersic = 1.0
+        alpha_c = 0.5
+        r_c = 0.7
+        e1, e2 = 0.0, 0.0
+
+        val = self.pl_sersic.function(
+            2000.0,  # scalar x
+            0.0,  # scalar y
+            amp,
+            R_sersic,
+            n_sersic,
+            alpha_c,
+            r_c,
+            e1,
+            e2,
+            center_x=0.0,
+            center_y=0.0,
+            max_R_frac=1000.0,
+        )
+        npt.assert_almost_equal(val, 0.0, decimal=12)
+
+    def test_pl_sersic_inner_branch_scalar(self):
+        # cover scalar branch: np.ndim(R)==0 and R < r_c -> I_inner_scalar(float(R))
+        amp = 1.0
+        R_sersic = 1.0
+        n_sersic = 1.0
+        alpha_c = 0.5
+        r_c = 0.7
+        e1, e2 = 0.0, 0.0
+
+        # scalar call
+        v_scalar = self.pl_sersic.function(
+            0.1,
+            0.2,
+            amp,
+            R_sersic,
+            n_sersic,
+            alpha_c,
+            r_c,
+            e1,
+            e2,
+            center_x=0.0,
+            center_y=0.0,
+        )
+
+        # compare against the already-tested array pathway for the same point
+        v_array = self.pl_sersic.function(
+            np.array([0.1]),
+            np.array([0.2]),
+            amp,
+            R_sersic,
+            n_sersic,
+            alpha_c,
+            r_c,
+            e1,
+            e2,
+            center_x=0.0,
+            center_y=0.0,
+        )
+        npt.assert_almost_equal(v_scalar, float(v_array[0]), decimal=12)
+
+    def test_total_flux_alpha_c_ge_3_raises(self):
+        # cover total_flux: alpha_c >= 3 -> raise ValueError
+        with pytest.raises(ValueError, match="alpha_c must be < 3"):
+            self.pl_sersic.total_flux(
+                amp=1.0,
+                R_sersic=1.0,
+                n_sersic=1.0,
+                alpha_c=3.0,
+                r_c=0.7,
+                e1=0.0,
+                e2=0.0,
+            )
+
 
 if __name__ == "__main__":
     pytest.main()
