@@ -34,15 +34,9 @@ class BPL(LensProfileBase):
 
     .. math::
         \\kappa(R) = \\kappa_1(R) + \\kappa_2(R),
-<<<<<<< HEAD
 
-    with a power-law term
-
-=======
-    
     with a elliptical power-law term
-    
->>>>>>> b94e7e69 (Fix BPL statements and remove redundant files)
+
     .. math::
         \\kappa_1(R) = \\frac{3-\\alpha}{2}\\left(\\frac{b}{R}\\right)^{\\alpha-1},
 
@@ -512,18 +506,12 @@ class BPLMajorAxis(LensProfileBase):
         maxiter=None,
     ):
         """Returns the deflection angles.
-<<<<<<< HEAD
 
         The deflection is evaluated as \\(\\alpha^*=\\alpha_1^*+\\alpha_2^*\\) following
-        Du et al. (2020, Eq. 18-22), where \\(\\alpha_1\\) is the SPL (power-law) term
-        and \\(\\alpha_2\\) is the inner correction involving the series \\(S_0\\).
+        Du et al. (2020, Eq. 18-22), where \\(\\alpha_1\\) is the EPL (Elliptical Power
+        Law) term and \\(\\alpha_2\\) is the inner correction involving the series
+        \\(S_0\\).
 
-=======
-        
-        The deflection is evaluated as \\(\\alpha^*=\\alpha_1^*+\\alpha_2^*\\) following Du et al. (2020, Eq. 18-22),
-        where \\(\\alpha_1\\) is the EPL (Elliptical Power Law) term and \\(\\alpha_2\\) is the inner correction involving the series \\(S_0\\).
-        
->>>>>>> b94e7e69 (Fix BPL statements and remove redundant files)
         :param x: x-coordinate in image plane relative to center (major axis frame)
         :param y: y-coordinate in image plane relative to center (major axis frame)
         :param b: lens strength parameter
@@ -583,18 +571,11 @@ class BPLMajorAxis(LensProfileBase):
         maxiter=None,
     ):
         """Hessian matrix of the lensing potential.
-<<<<<<< HEAD
 
         This routine returns second derivatives computed from convergence and shear. The
-        shear uses the SPL term and the inner correction term involving the series
+        shear uses the EPL term and the inner correction term involving the series
         \\(S_2\\) (Du et al. 2020, Eq. 23-26).
 
-=======
-        
-        This routine returns second derivatives computed from convergence and shear. The shear uses the EPL term and the
-        inner correction term involving the series \\(S_2\\) (Du et al. 2020, Eq. 23-26).
-        
->>>>>>> b94e7e69 (Fix BPL statements and remove redundant files)
         :param x: x-coordinate in image plane relative to center (major axis frame)
         :param y: y-coordinate in image plane relative to center (major axis frame)
         :param b: lens strength parameter
@@ -757,21 +738,16 @@ class BPLMajorAxis(LensProfileBase):
     # ----------------- main analytic building blocks -----------------
 
     def _epl_prefactors(self, b, a, R_el, invZ):
-<<<<<<< HEAD
-        """Compute common prefactors for the SPL (power-law) term.
-
-=======
         """Compute common prefactors for the EPL (Elliptical Power Law) term.
-        
->>>>>>> b94e7e69 (Fix BPL statements and remove redundant files)
+
         :param b: lens strength parameter
         :param a: outer 3D slope \\(\\alpha\\)
         :param R_el: elliptical radius \\(R_{\\rm el}\\)
         :param invZ: inverse complex coordinate \\(1/Z\\)
         :return: dict with keys Beta_a, pow_a, base1
         """
-
         Beta_a = self.Beta_func(a)
+
         pow_a = (b / R_el) ** (a - 1.0)
         base1 = (R_el * R_el) * invZ
         return {"Beta_a": Beta_a, "pow_a": pow_a, "base1": base1}
@@ -785,18 +761,13 @@ class BPLMajorAxis(LensProfileBase):
         :param a_c: inner slope \\(\\alpha_c\\)
         :return: True if r_c>0 and a != a_c
         """
-
-        return (r_c > 0.0) and (a != a_c)
+        Return(r_c > 0.0) and (a != a_c)
 
     @staticmethod
     def _kappa1_epl_like(pow_a, a):
-<<<<<<< HEAD
-        """SPL (power-law) convergence term \\(\\kappa_1\\) (Du et al. 2020, Eq. 13).
+        """EPL (Elliptical Power Law) convergence term \\(\\kappa_1\\) (Du et al. 2020,
+        Eq. 13).
 
-=======
-        """EPL (Elliptical Power Law) convergence term \\(\\kappa_1\\) (Du et al. 2020, Eq. 13).
-        
->>>>>>> b94e7e69 (Fix BPL statements and remove redundant files)
         :param pow_a: \\((b/R_{\\rm el})^{\\alpha-1}\\)
         :param a: outer slope \\(\\alpha\\)
         :return: \\(\\kappa_1\\)
@@ -806,14 +777,9 @@ class BPLMajorAxis(LensProfileBase):
 
     @staticmethod
     def _alpha1_epl_like(base1, pow_a, a, U_R):
-<<<<<<< HEAD
-        """SPL (power-law) complex deflection term \\(\\alpha_1^*\\) (Du et al. 2020,
-        Eq. 19).
+        """EPL (Elliptical Power Law) complex deflection term \\(\\alpha_1^*\\) (Du et
+        al. 2020, Eq. 19).
 
-=======
-        """EPL (Elliptical Power Law) complex deflection term \\(\\alpha_1^*\\) (Du et al. 2020, Eq. 19).
-        
->>>>>>> b94e7e69 (Fix BPL statements and remove redundant files)
         :param base1: \\(R_{\\rm el}^2/Z\\)
         :param pow_a: \\((b/R_{\\rm el})^{\\alpha-1}\\)
         :param a: outer slope \\(\\alpha\\)
@@ -826,14 +792,9 @@ class BPLMajorAxis(LensProfileBase):
 
     @staticmethod
     def _gamma1conj_epl_like(alpha1, invZ, kappa1, Z, a):
-<<<<<<< HEAD
-        """SPL (power-law) complex shear contribution \\(\\gamma_1^*\\) (Du et al. 2020,
-        Eq. 24).
+        """EPL (Elliptical Power Law) complex shear contribution \\(\\gamma_1^*\\) (Du
+        et al. 2020, Eq. 24).
 
-=======
-        """EPL (Elliptical Power Law) complex shear contribution \\(\\gamma_1^*\\) (Du et al. 2020, Eq. 24).
-        
->>>>>>> b94e7e69 (Fix BPL statements and remove redundant files)
         :param alpha1: complex deflection term \\(\\alpha_1\\)
         :param invZ: \\(1/Z\\)
         :param kappa1: convergence term \\(\\kappa_1\\)
