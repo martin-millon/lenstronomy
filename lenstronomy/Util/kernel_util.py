@@ -96,7 +96,7 @@ def center_kernel(kernel, iterations=20):
 
 @export
 def kernel_make_odd(kernel_even):
-    """Turns an even kernel into an odd kernel with quadratic interpolation
+    """Turns an even kernel into an odd kernel with quadratic interpolation.
 
     :param kernel_even: n x n kernel with n even, centered
     :return: even kernel with n+1 x n+1 centered
