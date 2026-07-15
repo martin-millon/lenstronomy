@@ -1,6 +1,8 @@
 import numpy as np
 from numpy.linalg import inv
 from lenstronomy.Util.cosmo_util import get_astropy_cosmology
+from lenstronomy.ImSim.multiplane_organizer import MultiPlaneOrganizer
+from lenstronomy.Cosmo.background import Background
 
 import warnings
 
@@ -89,6 +91,71 @@ class PositionLikelihood(object):
             dec_image_list = []
         self._ra_image_list, self._dec_image_list = ra_image_list, dec_image_list
 
+        # set up support for distance-ratio (beta) sampling in the source-position
+        # likelihood. In multi-lens-plane mode the sampled `factor_beta_i_j` parameters
+        # only get applied to the lens-model transverse distances inside
+        # Image2SourceMapping (i.e. the imaging likelihood). Point-source ray-tracing in
+        # source_position_likelihood therefore ignored them. Here we build a
+        # MultiPlaneOrganizer (mirroring Image2SourceMapping) so that the sampled
+        # distances also affect the point-source (LENSED_POSITION) likelihood.
+        self._distance_ratio_sampling = False
+        self._multi_plane_organizer = None
+        lens_model = self._lensModel
+        if (
+            getattr(lens_model, "multi_plane", False)
+            and getattr(lens_model.lens_model, "distance_ratio_sampling", False)
+            and hasattr(lens_model.lens_model, "multi_plane_base")
+        ):
+            self._setup_multi_plane_organizer()
+
+    def _setup_multi_plane_organizer(self):
+        """Builds a :class:`MultiPlaneOrganizer` to apply the sampled distance-ratio
+        (``factor_beta_i_j``) factors to the lens-model transverse distances during the
+        source-position likelihood evaluation. This mirrors the treatment in
+        :class:`~lenstronomy.ImSim.image2source_mapping.Image2SourceMapping` so that
+        ``distance_ratio_sampling`` also affects point-source (``LENSED_POSITION``)
+        ray-tracing, and not only the imaging likelihood.
+
+        :return: None, sets ``self._multi_plane_organizer`` and
+            ``self._distance_ratio_sampling``
+        """
+        lens_model = self._lensModel
+        source_redshift_list = list(self._pointSource._redshift_list)
+        # the organizer requires the maximum source redshift to equal the source
+        # convention redshift; make sure the convention plane is represented.
+        z_source_convention = lens_model.lens_model.z_source_convention
+        if len(source_redshift_list) == 0:
+            source_redshift_list = [lens_model.z_source]
+        if z_source_convention not in source_redshift_list:
+            source_redshift_list = source_redshift_list + [z_source_convention]
+        sorted_source_redshift_index = np.argsort(source_redshift_list)
+
+        self._multi_plane_organizer = MultiPlaneOrganizer(
+            lens_model.redshift_list,
+            source_redshift_list,
+            lens_model.lens_model.multi_plane_base.sorted_redshift_index,
+            sorted_source_redshift_index,
+            lens_model.lens_model.z_lens_convention,
+            z_source_convention,
+            Background(lens_model.cosmo),
+        )
+        self._distance_ratio_sampling = True
+
+    def _apply_distance_ratio_sampling(self, kwargs_special):
+        """Applies the sampled distance-ratio (``factor_beta_i_j``) factors to the
+        current lens-model transverse distances. Must be called after any
+        ``change_source_redshift`` call, since that re-initializes the multi-plane lens
+        model with the fiducial (cosmology-based) distances.
+
+        :param kwargs_special: special keyword arguments containing the
+            ``factor_beta_i_j`` parameters
+        :return: None, updates the lens-model transverse-distance lists in place
+        """
+        if self._distance_ratio_sampling and kwargs_special is not None:
+            self._multi_plane_organizer.update_lens_T_lists(
+                self._lensModel, kwargs_special
+            )
+
     def logL(self, kwargs_lens, kwargs_ps, kwargs_special, verbose=False):
         """
 
@@ -139,6 +206,7 @@ class PositionLikelihood(object):
                 kwargs_ps,
                 self._source_position_sigma,
                 hard_bound_rms=self._bound_source_position_tolerance,
+                kwargs_special=kwargs_special,
                 verbose=verbose,
             )
             logL += logL_source_pos
@@ -244,6 +312,7 @@ class PositionLikelihood(object):
         kwargs_ps,
         sigma,
         hard_bound_rms=None,
+        kwargs_special=None,
         verbose=False,
     ):
         """Computes a likelihood/punishing factor of how well the source positions of
@@ -256,6 +325,9 @@ class PositionLikelihood(object):
         :param sigma: 1-sigma Gaussian uncertainty in the image plane
         :param hard_bound_rms: hard bound deviation between the mapping of the images
             back to the source plane (in source frame)
+        :param kwargs_special: special keyword arguments; used to apply the sampled
+            distance-ratio (``factor_beta_i_j``) factors when
+            ``distance_ratio_sampling`` is active
         :param verbose: bool, if True provides print statements with useful information.
         :return: log likelihood of the model reproducing the correct image positions
             given an image position uncertainty
@@ -276,6 +348,21 @@ class PositionLikelihood(object):
                 self._lensModel.change_source_redshift(redshift_list[k])
                 # calculating the individual source positions from the image positions
                 k_list = self._pointSource.k_list(k)
+                if self._distance_ratio_sampling and kwargs_special is not None:
+                    # change_source_redshift re-initializes the multi-plane lens model
+                    # with fiducial distances; re-apply the sampled distance ratios and
+                    # recompute the reference source position with the same distances so
+                    # that it is consistent with the per-image ray-tracing below.
+                    self._apply_distance_ratio_sampling(kwargs_special)
+                    x_src, y_src = [], []
+                    for i in range(len(x_image)):
+                        k_lens = k_list[i] if k_list is not None else None
+                        xs, ys = self._lensModel.ray_shooting(
+                            x_image[i], y_image[i], kwargs_lens, k=k_lens
+                        )
+                        x_src.append(xs)
+                        y_src.append(ys)
+                    source_x[k], source_y[k] = np.mean(x_src), np.mean(y_src)
                 for i in range(len(x_image)):
                     if k_list is not None:
                         k_lens = k_list[i]
