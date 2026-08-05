@@ -40,13 +40,13 @@ class MultiLinear(MultiDataBase):
          that they get overwritten by the linear solver solution.
         """
         self.type = "multi-linear"
-        imageModel_list = []
+        image_model_list = []
         if linear_solver is False and len(multi_band_list) > 1:
             raise ValueError(
                 'Multi-linear mode with more than one band does not support "linear_solver" = False.'
             )
         for band_index in range(len(multi_band_list)):
-            imageModel = SingleBandMultiModel(
+            image_model = SingleBandMultiModel(
                 multi_band_list,
                 kwargs_model,
                 likelihood_mask_list=likelihood_mask_list,
@@ -54,8 +54,8 @@ class MultiLinear(MultiDataBase):
                 kwargs_pixelbased=kwargs_pixelbased,
                 linear_solver=linear_solver,
             )
-            imageModel_list.append(imageModel)
-        super(MultiLinear, self).__init__(imageModel_list, compute_bool=compute_bool)
+            image_model_list.append(image_model)
+        super(MultiLinear, self).__init__(image_model_list, compute_bool=compute_bool)
 
     def image_linear_solve(
         self,
@@ -87,7 +87,7 @@ class MultiLinear(MultiDataBase):
         wls_list, error_map_list, cov_param_list, param_list = [], [], [], []
         for i in range(self._num_bands):
             if self._compute_bool[i] is True:
-                wls_model, error_map, cov_param, param = self._imageModel_list[
+                wls_model, error_map, cov_param, param = self._image_model_list[
                     i
                 ].image_linear_solve(
                     kwargs_lens,
@@ -121,10 +121,10 @@ class MultiLinear(MultiDataBase):
         """Computes the likelihood of the data given a model This is specified with the
         non-linear parameters and a linear inversion and prior marginalisation.
 
-        :param kwargs_lens:
-        :param kwargs_source:
-        :param kwargs_lens_light:
-        :param kwargs_ps:
+        :param kwargs_lens: list of keyword arguments for the mass profiles
+        :param kwargs_source: list of keyword arguments for the source light profiles
+        :param kwargs_lens_light: list of keyword arguments for the lens light profiles
+        :param kwargs_ps: list of keyword arguments for point sources
         :param check_positive_flux: bool, if True, checks whether the linear inversion
             resulted in non-negative flux components and applies a punishment in the
             likelihood if so.
@@ -138,7 +138,7 @@ class MultiLinear(MultiDataBase):
             linear_prior = [None for i in range(self._num_bands)]
         for i in range(self._num_bands):
             if self._compute_bool[i] is True:
-                logL_i, param_i = self._imageModel_list[i].likelihood_data_given_model(
+                logL_i, param_i = self._image_model_list[i].likelihood_data_given_model(
                     kwargs_lens,
                     kwargs_source,
                     kwargs_lens_light,
@@ -168,14 +168,13 @@ class MultiLinear(MultiDataBase):
 
         :param param: linear parameter vector corresponding to the response matrix
         :type param: list of array
-        :param model_band: for which band the model parameters need to be retrieved
-        :param kwargs_lens:
-        :param kwargs_source:
-        :param kwargs_lens_light:
-        :param kwargs_ps:
+        :param model_band: integer, which band the model parameters need to be retrieved
+        :param kwargs_lens: list of keyword arguments for the mass profiles
+        :param kwargs_source: list of keyword arguments for the source light profiles
+        :param kwargs_lens_light: list of keyword arguments for the lens light profiles
+        :param kwargs_ps: list of keyword arguments for point sources
         :return: updated list of kwargs with linear parameter values for specific band
         """
-        model_band = self._imageModel_list[model_band]
-        return model_band.update_linear_kwargs(
+        return self._image_model_list[model_band].update_linear_kwargs(
             param[model_band], kwargs_lens, kwargs_source, kwargs_lens_light, kwargs_ps
         )
