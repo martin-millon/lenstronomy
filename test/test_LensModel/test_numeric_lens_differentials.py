@@ -86,8 +86,10 @@ class TestNumericsProfile(object):
     ):
         x = np.linspace(start=0.1, stop=5.5, num=10)
         y = np.zeros_like(x)
-
-        lensModel = LensModel(lens_model)
+        if isinstance(lens_model, list):
+            lensModel = LensModel(lens_model)
+        else:
+            lensModel = lens_model
         f_xx, f_xy, f_yx, f_yy = lensModel.hessian(x, y, [kwargs])
         f_xx_num, f_xy_num, f_yx_num, f_yy_num = lensModel.hessian(
             x, y, [kwargs], diff=diff
@@ -107,7 +109,6 @@ class TestNumericsProfile(object):
         y = np.linspace(start=0.1, stop=5.5, num=10)
         x = np.zeros_like(y)
 
-        lensModel = LensModel(lens_model)
         f_xx, f_xy, f_yx, f_yy = lensModel.hessian(x, y, [kwargs])
         f_xx_num, f_xy_num, f_yx_num, f_yy_num = lensModel.hessian(
             x, y, [kwargs], diff=diff
@@ -191,7 +192,14 @@ class TestNumericsProfile(object):
         self.assert_differentials(lens_model, kwargs)
 
     def test_hessian(self):
-        kwargs = {"f_xx": 0.1, "f_yy": -0.1, "f_xy": 0.1, "f_yx": 0.1}
+        kwargs = {
+            "f_xx": 0.1,
+            "f_yy": -0.1,
+            "f_xy": 0.1,
+            "f_yx": 0.1,
+            "ra_0": 10,
+            "dec_0": 10,
+        }
         lens_model = ["HESSIAN"]
         self.assert_differentials(lens_model, kwargs)
 
@@ -433,6 +441,22 @@ class TestNumericsProfile(object):
         kwargs = {"theta_E": 2.0, "theta_c": 1.0, "e1": 0.1, "e2": 0.1}
         lens_model = ["NIE_POTENTIAL"]
         self.assert_differentials(lens_model, kwargs)
+
+    def test_shift(self):
+        kwargs = {"alpha_x": 1, "alpha_y": -1}
+        lens_model = ["SHIFT"]
+        self.assert_differentials(lens_model, kwargs)
+
+    def test_perturber_model(self):
+
+        lensModel = LensModel(
+            lens_model_list=["PERTURBER"],
+            profile_kwargs_list=[{"profile": "SIS", "ra_0": 10, "dec_0": 10}],
+        )
+        kwargs_sis = {"theta_E": 1, "center_x": 0, "center_y": 0}
+        self.assert_differentials(
+            lens_model=lensModel, kwargs=kwargs_sis, potential=True
+        )
 
     def test_multipole(self):
         kwargs = {"m": 4, "a_m": 0.05, "phi_m": 0.1, "center_x": 0.0, "center_y": 0.0}

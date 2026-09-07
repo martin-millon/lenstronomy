@@ -23,7 +23,7 @@ class Shift(LensProfileBase):
         :return: lensing potential
         """
 
-        return np.zeros_like(x)
+        return alpha_x * x + alpha_y * y
 
     def derivatives(self, x, y, alpha_x, alpha_y):
         """

@@ -74,6 +74,7 @@ _SUPPORTED_MODELS = [
     "NIE_POTENTIAL",
     "NIE_SIMPLE",
     "PEMD",
+    "PERTURBER",
     "PJAFFE",
     "PJAFFE_ELLIPSE_POTENTIAL",
     "POINT_MASS",
@@ -651,6 +652,10 @@ def lens_class(
         from lenstronomy.LensModel.Profiles.pemd import PEMD
 
         return PEMD(**profile_kwargs)
+    elif lens_type == "PERTURBER":
+        from lenstronomy.LensModel.Profiles.perturber_model import PerturberModel
+
+        return PerturberModel(**profile_kwargs)
     elif lens_type == "PJAFFE":
         from lenstronomy.LensModel.Profiles.pseudo_jaffe import PseudoJaffe
 
