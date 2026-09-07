@@ -2,7 +2,7 @@ from lenstronomy.GalKin.observation import GalkinObservation
 from lenstronomy.GalKin.galkin_model import GalkinModel
 
 import numpy as np
-from scipy.signal import convolve2d
+from scipy.signal import fftconvolve
 from scipy.interpolate import interp1d
 
 __all__ = ["Galkin"]
@@ -342,10 +342,12 @@ class Galkin(GalkinModel, GalkinObservation):
             fwhm_factor=3, supersampling_factor=supersampling_factor
         )
 
-        sigma2_IR_convolved = convolve2d(
+        # fftconvolve matches convolve2d(mode="same") to machine precision and is
+        # orders of magnitude faster for a large kernel, see GalkinObservation.convolve
+        sigma2_IR_convolved = fftconvolve(
             sigma2_IR_grid, convolution_kernel, mode="same"
         )
-        IR_convolved = convolve2d(IR_grid, convolution_kernel, mode="same")
+        IR_convolved = fftconvolve(IR_grid, convolution_kernel, mode="same")
 
         if voronoi_bins is not None:
             n_bins = int(np.max(voronoi_bins)) + 1

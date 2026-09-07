@@ -1,7 +1,7 @@
 from lenstronomy.GalKin.aperture import Aperture
 from lenstronomy.GalKin.psf import PSF
 import lenstronomy.Util.util as util
-from scipy.signal import convolve2d
+from scipy.signal import fftconvolve
 import numpy as np
 
 __all__ = ["GalkinObservation"]
@@ -51,4 +51,4 @@ class GalkinObservation(PSF, Aperture):
                 # make odd
                 num_pix = int(np.ceil(num_pix)) // 2 * 2 + 1
         kernel = self.convolution_kernel(delta_pix_psf, num_pix)
-        return convolve2d(data, kernel, mode="same")
+        return fftconvolve(data, kernel, mode="same")

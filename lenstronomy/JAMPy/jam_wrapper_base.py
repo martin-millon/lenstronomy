@@ -5,6 +5,7 @@ from lenstronomy.GalKin.anisotropy import Anisotropy
 from lenstronomy.Util.param_util import ellipticity2phi_q
 import numpy as np
 import sys
+from inspect import signature
 
 # Jampy 9 requires python >3.11
 if sys.version_info >= (3, 12):
@@ -275,6 +276,11 @@ class JAMWrapperBase(object):
     ):
         if jam_kwargs is None:
             jam_kwargs = {}
+        # kwargs_jampy is shared by the two solvers, but some options only exist for the
+        # axisymmetric one (e.g. 'spectral_derivs'). A lens is routed here whenever the
+        # inclination is undefined, so the same settings must not raise a TypeError.
+        supported = signature(jam.sph.proj.__init__).parameters
+        jam_kwargs = {k: v for k, v in jam_kwargs.items() if k in supported}
         if not self._anisotropy.use_logistic:
             beta = np.ones_like(surf_lum) * beta
         jam_model = jam.sph.proj(
